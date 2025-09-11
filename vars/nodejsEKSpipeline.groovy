@@ -12,7 +12,7 @@ def call(Map configMap) {
         }
         options {
             disableConcurrentBuilds()
-            timeout(time : 30 , unit : 'MINUTES')
+            timeout(time: 30 , unit: 'MINUTES')
             ansiColor('xterm')
         }
         parameters{
