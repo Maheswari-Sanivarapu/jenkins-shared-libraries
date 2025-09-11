@@ -1,82 +1,82 @@
-def call(configMap) {
+def call(Map configMap) {
     pipeline{
         agent{
             label 'LABEL_1'
         }
-        environment {
+        environment{
             REGION = 'us-east-1'
             appVersion = ''
-            ACC_ID = 557690617909
+            ACC_ID = 
             PROJECT = configMap.get('PROJECT')
             COMPONENT = configMap.get('COMPONENT')
         }
-        options {
+        options{
+            timeout(time: 30, unit: 'MINUTES')
             disableConcurrentBuilds()
-            timeout(time : 30 , unit : 'MINUTES')
             ansiColor('xterm')
         }
         parameters{
-            booleanParam(name: 'deploy', defaultValue:false, description: 'Toggle this value')
+            booleanParam(name: 'deploy' , defaultValue: false , description: 'Toggle this value')
         }
         stages{
-            stage('Read package.json file'){
+            stage('Read the pom.xml version'){
                 steps{
                     script{
-                        def packageJson = readJSON file: 'package.json'
-                        appVersion = packageJson.version
-                        echo "Package Version: ${appVersion}"
+                        def pom = readMavenPom file : 'pom.xml'
+                        appVersion = pom.version
+                        echo "appversion is : ${appVersion}"
                     }
                 }
             }
-            stage('install npm dependencies'){
+            stage('install maven dependencies'){
                 steps{
                     script{
                         sh """
-                            npm install
+                            mvn clean package
                         """
                     }
                 }
             }
-            stage('Building the Docker Image'){
+            stage('build the docker image'){
                 steps{
                     script{
                         withAWS(credentials: 'aws-auth', region: 'us-east-1'){
                             sh """
                                 aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com
                                 docker build -t ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion} .
-                                docker push ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion}
+                                docker push ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion} 
                             """
                         }
                     }
                 }
             }
-            stage('Trigger Catalogue-cd'){
+            stage("Trigger ${COMPONENT}-cd"){
                 when {
                     expression {params.deploy}
                 }
                 steps{
                     script{
-                        build job: "${COMPONENT}-cd",
-                        parameters: [
+                        build job : "${COMPONENT}-cd",
+                        parameters : [
                             string(name: 'appVersion', value: "${appVersion}"),
                             string(name: 'deploy_to', value: 'dev')
                         ],
-                        propagate: false,
+                        propagate: false
                         wait: false
                     }
                 }
             }
         }
         post {
-            always {
-                echo 'i will always say hello again'
+            always{
+                echo "I will always say hello again"
                 deleteDir()
             }
             success {
-                echo 'Success'
+                echo "Success"
             }
             failure {
-                echo 'Failure'
+                echo "Failure"
             }
         }
     }
