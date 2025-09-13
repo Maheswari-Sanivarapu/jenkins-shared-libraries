@@ -22,9 +22,69 @@ def call(Map configMap){
             stage('Read the appVersion'){
                 steps{
                     script{
-                        def 
+                        appVersion = readFile('version')
+                        echo "appVersion : ${appVersion}"
                     }
                 }
+            }
+            stage('install the dependencies'){
+                steps{
+                    script{
+                        sh """
+                            pip3 install -r requirements.txt
+                        """
+                    }
+                }
+            }
+            stage('unit testing'){
+                steps{
+                    script{
+                        sh """
+                            echo "unit tests"
+                        """
+                    }
+                }
+            }
+            stage('Docker Build'){
+                steps{
+                    script{
+                        withAWS(credentials: 'aws-auth', region: 'us-east-1'){
+                            sh """
+                                aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com
+                                docker build -t ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion} .
+                                docker push ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion}
+                            """
+                        }
+                    }
+                }
+            }
+            stage("Trigger ${COMPONENT}-cd"){
+                when{
+                    expression { params.deploy }
+                }
+                steps{
+                    script{
+                        build job: "${COMPONENT}-cd",
+                        parameters: [
+                            string(name: 'appVersion', value: "${appVersion}"),
+                            string(name: 'deploy_to', value: 'dev')
+                        ],
+                        propagate: false,  // even SG fails VPC will not be effected
+                        wait: false // VPC will not wait for SG pipeline completion
+                    }
+                }
+            }
+        }
+        post {
+            always{
+                echo 'i will always say hello again'
+                deleteDir()
+            }
+            success{
+                echo "Success"
+            }
+            failure{
+                echo "Failure"
             }
         }
     }
