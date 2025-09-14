@@ -58,7 +58,7 @@ def call(Map configMap){
                     }
                 }
             }
-            stage("Trigger ${COMPONENT}-cd"){
+            stage("Trigger cd"){
                 when{
                     expression { params.deploy }
                 }
